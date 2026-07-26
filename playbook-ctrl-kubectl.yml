@@ -1,0 +1,57 @@
+---
+- name: Установить kubectl на ctrl
+  hosts: control
+  become: true
+  tasks:
+    - name: Создать директорию для ключей apt
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Скачать GPG-ключ Kubernetes
+      get_url:
+        url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+        dest: /etc/apt/keyrings/kubernetes.asc
+        mode: "0644"
+
+    - name: Добавить репозиторий Kubernetes
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: "deb [signed-by=/etc/apt/keyrings/kubernetes.asc] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /\n"
+        mode: "0644"
+
+    - name: Установить kubectl
+      apt:
+        name: kubectl
+        state: present
+        update_cache: true
+
+- name: Забрать kubeconfig с мастера и разложить на ctrl
+  hosts: masters
+  become: true
+  tasks:
+    - name: Прочитать admin.conf с мастера
+      slurp:
+        src: /etc/kubernetes/admin.conf
+      register: kubeconfig_content
+
+    - name: Создать ~/.kube на ctrl
+      file:
+        path: /home/ivan/.kube
+        state: directory
+        owner: ivan
+        group: ivan
+        mode: "0755"
+      delegate_to: ctrl
+      become: false
+
+    - name: Записать kubeconfig на ctrl
+      copy:
+        content: "{{ kubeconfig_content.content | b64decode }}"
+        dest: /home/ivan/.kube/config
+        owner: ivan
+        group: ivan
+        mode: "0600"
+      delegate_to: ctrl
+      become: false

@@ -1,0 +1,58 @@
+---
+- name: Установка Docker на все машины
+  hosts: all
+  become: true
+  tasks:
+    - name: Установить зависимости для репозитория
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: true
+
+    - name: Создать директорию для ключей
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Скачать GPG-ключ Docker
+      get_url:
+        url:  https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Добавить репозиторий Docker
+      copy:
+        dest: /etc/apt/sources.list.d/docker.list
+        content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable\n"
+        mode: "0644"
+
+    - name: Обновить кэш apt после добавления репозитория
+      apt:
+        update_cache: true
+
+    - name: Установить Docker Engine и плагины
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Запустить и включить автозапуск Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Добавить пользователя ivan в группу docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: true
